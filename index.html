@@ -166,21 +166,17 @@
     </div>
 
     <script>
-        const API_KEY = "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";
+        const API_KEY = "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";
         const MODEL = "google/gemma-3-4b-it:free";
         const CONTACT_NUMBER = "+975 17817661";
 
-        // Moved instructions to "user" role to avoid "Developer instruction is not enabled" error
         const initialSystemPrompt = `Kuzu Zangpo! You are the Tshong La Digital Assistant. 
-        Business Info:
-        - Registration is FREE. 
-        - Monthly fee is Nu. 499. 
-        - No sales commission. 
-        - Customers contact sellers directly via WhatsApp or Phone.
+        Registration is FREE. Monthly fee is Nu. 499. No sales commission. 
+        Customers contact sellers directly via WhatsApp or Phone.
         Rules:
-        - Always use bold text for key details like **Nu. 499** or **17817661**. 
+        - Use bold for key details like **Nu. 499** or **17817661**. 
         - Respond as a helpful assistant.
-        - Encourage them to use the WhatsApp button or call 17817661 to finalize.`;
+        - Encourage WhatsApp (+975 17817661) or calling to finalize.`;
 
         let history = [
             { role: "user", content: initialSystemPrompt },
@@ -213,7 +209,7 @@
                 if (!res.ok) {
                     const errorData = await res.json();
                     console.error('API Error:', errorData);
-                    throw new Error(errorData.error?.message || "Failed to connect");
+                    throw new Error(errorData.error?.message || "Auth Error");
                 }
                 return await res.json();
             } catch (e) {
@@ -255,18 +251,16 @@
             try {
                 history.push({ role: "user", content: text });
                 const data = await fetchAI(history);
-                const reply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+                const reply = data.choices?.[0]?.message?.content || "No response.";
                 
                 typing.classList.add('hidden');
                 addMessageToUI('assistant', reply);
                 history.push({ role: "assistant", content: reply });
                 
-                // Keep history trimmed to save tokens
                 if (history.length > 12) history.splice(2, 2);
             } catch (e) {
-                console.error(e);
                 typing.classList.add('hidden');
-                addMessageToUI('assistant', "Kuzu Zangpo! I'm having trouble connecting to the server. Please WhatsApp us at **17817661** for immediate help!");
+                addMessageToUI('assistant', "Kuzu Zangpo! Connection failed. Please WhatsApp us at **17817661**.");
             } finally {
                 btn.disabled = false;
             }
