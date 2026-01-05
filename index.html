@@ -66,8 +66,6 @@
             font-weight: 800;
             color: #ea580c;
         }
-        .message-content ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; }
-        .message-content li { margin-bottom: 0.25rem; }
 
         .bot-bubble {
             background: #f8fafc;
@@ -101,7 +99,6 @@
             color: white;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .wa-button:hover { transform: translateY(-2px); filter: brightness(1.05); }
 
         .chat-container::-webkit-scrollbar { display: none; }
         .chat-container { -ms-overflow-style: none; scrollbar-width: none; }
@@ -168,21 +165,18 @@
 
     <script>
         const apiKey = ""; 
+        const systemPrompt = "Kuzu Zangpo! You are the Tshong La Digital Assistant. Registration is Nu. 499/month. 0% commission. Always use bold markdown for prices and phone numbers (+975 17817661). Be concise.";
 
-        const systemPrompt = `Kuzu Zangpo! You are the Tshong La Digital Assistant. 
-        Registration is Nu. 499/month. 0% commission. Customers contact owners directly via WhatsApp/Phone.
-        Always use bold markdown like **Nu. 499** or **17817661**. No raw asterisks. Keep answers concise.`;
+        async function fetchAI(userQuery, retries = 5) {
+            // Environment key injection works ONLY when script runs in-editor.
+            // For a standalone 'real browser', it requires a key or a server-side proxy.
+            if (!apiKey) {
+                return "Kuzu Zangpo! To register for **Nu. 499/month**, please **WhatsApp +975 17817661** directly. Our automated assistant is currently in maintenance mode for external browsers.";
+            }
 
-        let chatMemory = [];
-
-        async function fetchAI(userQuery, retries = 5, delay = 1000) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            
-            chatMemory.push({ role: "user", parts: [{ text: userQuery }] });
-            if (chatMemory.length > 10) chatMemory = chatMemory.slice(-10);
-
             const payload = {
-                contents: chatMemory,
+                contents: [{ parts: [{ text: userQuery }] }],
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
@@ -192,27 +186,35 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) {
-                    const errorMsg = await response.text();
-                    console.error('API Error:', errorMsg);
-                    throw new Error('API_FAIL');
-                }
-
+                
+                if (!response.ok) throw new Error();
                 const data = await response.json();
-                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (aiText) {
-                    chatMemory.push({ role: "model", parts: [{ text: aiText }] });
-                }
-
-                return aiText;
+                return data.candidates?.[0]?.content?.parts?.[0]?.text;
             } catch (error) {
                 if (retries > 0) {
-                    await new Promise(r => setTimeout(r, delay));
-                    return fetchAI(userQuery, retries - 1, delay * 2);
+                    await new Promise(r => setTimeout(r, 1000));
+                    return fetchAI(userQuery, retries - 1);
                 }
                 throw error;
+            }
+        }
+
+        async function handleSendMessage() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage('user', text);
+            input.value = '';
+            document.getElementById('typing').classList.remove('hidden');
+
+            try {
+                const reply = await fetchAI(text);
+                document.getElementById('typing').classList.add('hidden');
+                addMessage('assistant', reply);
+            } catch (e) {
+                document.getElementById('typing').classList.add('hidden');
+                addMessage('assistant', "Network issue. Please WhatsApp **+975 17817661**.");
             }
         }
 
@@ -220,48 +222,13 @@
             const box = document.getElementById('chat-box');
             const div = document.createElement('div');
             div.className = role === 'user' ? 'user-bubble' : 'bot-bubble';
-            
-            const content = document.createElement('div');
-            content.className = 'message-content';
-            content.innerHTML = marked.parse(text); 
-            
-            div.appendChild(content);
+            div.innerHTML = `<div class="message-content">${marked.parse(text)}</div>`;
             box.appendChild(div);
-            box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+            box.scrollTop = box.scrollHeight;
         }
 
-        async function handleSendMessage() {
-            const input = document.getElementById('user-input');
-            const text = input.value.trim();
-            const btn = document.getElementById('send-btn');
-            
-            if (!text || btn.disabled) return;
-
-            addMessage('user', text);
-            input.value = '';
-            btn.disabled = true;
-            document.getElementById('typing').classList.remove('hidden');
-
-            try {
-                const reply = await fetchAI(text);
-                document.getElementById('typing').classList.add('hidden');
-                addMessage('assistant', reply || "Kuzu Zangpo! Please message us at **17817661**.");
-            } catch (e) {
-                document.getElementById('typing').classList.add('hidden');
-                addMessage('assistant', "Network issue. Please WhatsApp **17817661**.");
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        document.getElementById('user-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleSendMessage();
-        });
-
-        function openWhatsApp() {
-            const msg = encodeURIComponent("Hello Tshong La! I want to register my business.");
-            window.open(`https://wa.me/97517817661?text=${msg}`, '_blank');
-        }
+        document.getElementById('user-input').onkeypress = (e) => e.key === 'Enter' && handleSendMessage();
+        function openWhatsApp() { window.open("https://wa.me/97517817661", "_blank"); }
     </script>
 </body>
 </html>
