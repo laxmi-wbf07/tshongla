@@ -65,8 +65,6 @@
             font-weight: 800;
             color: #ea580c;
         }
-        .message-content p { margin-bottom: 0.5rem; }
-        .message-content p:last-child { margin-bottom: 0; }
 
         .bot-bubble {
             background: #f8fafc;
@@ -100,7 +98,6 @@
             color: white;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .wa-button:hover { transform: translateY(-2px); filter: brightness(1.05); }
 
         .chat-container::-webkit-scrollbar { display: none; }
         .chat-container { -ms-overflow-style: none; scrollbar-width: none; }
@@ -166,71 +163,54 @@
     </div>
 
     <script>
-        const API_KEY = "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";
-        const MODEL = "google/gemma-3-4b-it:free";
-        const CONTACT_NUMBER = "+975 17817661";
+        const apiKey = ""; // Managed by environment
+        const systemPrompt = `Kuzu Zangpo! You are the Tshong La Digital Assistant. 
+        Registration is Nu. 499/month. 0% commission. Customers contact owners directly via WhatsApp/Phone.
+        Always use bold markdown like **Nu. 499** or **17817661**. No raw asterisks.`;
 
-        const initialSystemPrompt = `Kuzu Zangpo! You are the Tshong La Digital Assistant. 
-        Registration is FREE. Monthly fee is Nu. 499. No sales commission. 
-        Customers contact sellers directly via WhatsApp or Phone.
-        Rules:
-        - Use bold for key details like **Nu. 499** or **17817661**. 
-        - Respond as a helpful assistant.
-        - Encourage WhatsApp (+975 17817661) or calling to finalize.`;
-
-        let history = [
-            { role: "user", content: initialSystemPrompt },
-            { role: "assistant", content: "Kuzu Zangpo! I am ready to assist as the Tshong La Digital Assistant. How can I help you get your business online today?" }
-        ];
+        let chatHistory = [];
 
         function openWhatsApp() {
             const msg = encodeURIComponent("Hello Tshong La! I want to register my business.");
             window.open(`https://wa.me/97517817661?text=${msg}`, '_blank');
         }
 
-        async function fetchAI(messages, retries = 5, delay = 1000) {
+        async function fetchAI(userQuery, retries = 5, delay = 1000) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
             try {
-                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${API_KEY}`,
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": window.location.origin,
-                        "X-Title": "Tshong La Bot"
-                    },
-                    body: JSON.stringify({ 
-                        model: MODEL, 
-                        messages: messages, 
-                        temperature: 0.7,
-                        max_tokens: 500
-                    })
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
 
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    console.error('API Error:', errorData);
-                    throw new Error(errorData.error?.message || "Auth Error");
-                }
-                return await res.json();
-            } catch (e) {
+                if (!response.ok) throw new Error('API_FAIL');
+                const data = await response.json();
+                return data.candidates?.[0]?.content?.parts?.[0]?.text;
+            } catch (error) {
                 if (retries > 0) {
                     await new Promise(r => setTimeout(r, delay));
-                    return fetchAI(messages, retries - 1, delay * 2);
+                    return fetchAI(userQuery, retries - 1, delay * 2);
                 }
-                throw e;
+                throw error;
             }
         }
 
-        function addMessageToUI(role, text) {
+        function addMessage(role, text) {
             const box = document.getElementById('chat-box');
             const div = document.createElement('div');
             div.className = role === 'user' ? 'user-bubble' : 'bot-bubble';
             
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.innerHTML = marked.parse(text); 
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.innerHTML = marked.parse(text); 
             
-            div.appendChild(contentDiv);
+            div.appendChild(content);
             box.appendChild(div);
             box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
         }
@@ -238,31 +218,19 @@
         async function handleSendMessage() {
             const input = document.getElementById('user-input');
             const text = input.value.trim();
-            const btn = document.getElementById('send-btn');
-            const typing = document.getElementById('typing');
+            if (!text) return;
 
-            if (!text || btn.disabled) return;
-
-            addMessageToUI('user', text);
+            addMessage('user', text);
             input.value = '';
-            btn.disabled = true;
-            typing.classList.remove('hidden');
+            document.getElementById('typing').classList.remove('hidden');
 
             try {
-                history.push({ role: "user", content: text });
-                const data = await fetchAI(history);
-                const reply = data.choices?.[0]?.message?.content || "No response.";
-                
-                typing.classList.add('hidden');
-                addMessageToUI('assistant', reply);
-                history.push({ role: "assistant", content: reply });
-                
-                if (history.length > 12) history.splice(2, 2);
+                const reply = await fetchAI(text);
+                document.getElementById('typing').classList.add('hidden');
+                addMessage('assistant', reply || "Kuzu Zangpo! Please try again.");
             } catch (e) {
-                typing.classList.add('hidden');
-                addMessageToUI('assistant', "Kuzu Zangpo! Connection failed. Please WhatsApp us at **17817661**.");
-            } finally {
-                btn.disabled = false;
+                document.getElementById('typing').classList.add('hidden');
+                addMessage('assistant', "Connection error. WhatsApp us at **17817661**.");
             }
         }
 
