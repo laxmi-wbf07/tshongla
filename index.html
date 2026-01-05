@@ -66,6 +66,8 @@
             font-weight: 800;
             color: #ea580c;
         }
+        .message-content ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; }
+        .message-content li { margin-bottom: 0.25rem; }
 
         .bot-bubble {
             background: #f8fafc;
@@ -99,6 +101,7 @@
             color: white;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        .wa-button:hover { transform: translateY(-2px); filter: brightness(1.05); }
 
         .chat-container::-webkit-scrollbar { display: none; }
         .chat-container { -ms-overflow-style: none; scrollbar-width: none; }
@@ -164,21 +167,18 @@
     </div>
 
     <script>
-        const apiKey = ""; // Managed by environment
+        const apiKey = ""; 
+
         const systemPrompt = `Kuzu Zangpo! You are the Tshong La Digital Assistant. 
         Registration is Nu. 499/month. 0% commission. Customers contact owners directly via WhatsApp/Phone.
         Always use bold markdown like **Nu. 499** or **17817661**. No raw asterisks. Keep answers concise.`;
 
-        // Memory array to keep track of conversation
         let chatMemory = [];
 
         async function fetchAI(userQuery, retries = 5, delay = 1000) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             
-            // Add user query to memory
             chatMemory.push({ role: "user", parts: [{ text: userQuery }] });
-
-            // Maintain memory size (last 10 messages)
             if (chatMemory.length > 10) chatMemory = chatMemory.slice(-10);
 
             const payload = {
@@ -193,12 +193,16 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) throw new Error('API_FAIL');
+                if (!response.ok) {
+                    const errorMsg = await response.text();
+                    console.error('API Error:', errorMsg);
+                    throw new Error('API_FAIL');
+                }
+
                 const data = await response.json();
                 const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
                 if (aiText) {
-                    // Save AI response to memory
                     chatMemory.push({ role: "model", parts: [{ text: aiText }] });
                 }
 
@@ -241,10 +245,10 @@
             try {
                 const reply = await fetchAI(text);
                 document.getElementById('typing').classList.add('hidden');
-                addMessage('assistant', reply || "Kuzu Zangpo! I am having a bit of trouble. Please ask again or WhatsApp **17817661**.");
+                addMessage('assistant', reply || "Kuzu Zangpo! Please message us at **17817661**.");
             } catch (e) {
                 document.getElementById('typing').classList.add('hidden');
-                addMessage('assistant', "Network issue. Please contact us directly at **17817661** or try again.");
+                addMessage('assistant', "Network issue. Please WhatsApp **17817661**.");
             } finally {
                 btn.disabled = false;
             }
