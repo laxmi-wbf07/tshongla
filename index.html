@@ -24,6 +24,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
         }
 
         .main-card {
@@ -166,19 +167,22 @@
         const apiKey = ""; // Managed by environment
         const systemPrompt = `Kuzu Zangpo! You are the Tshong La Digital Assistant. 
         Registration is Nu. 499/month. 0% commission. Customers contact owners directly via WhatsApp/Phone.
-        Always use bold markdown like **Nu. 499** or **17817661**. No raw asterisks.`;
+        Always use bold markdown like **Nu. 499** or **17817661**. No raw asterisks. Keep answers concise.`;
 
-        let chatHistory = [];
-
-        function openWhatsApp() {
-            const msg = encodeURIComponent("Hello Tshong La! I want to register my business.");
-            window.open(`https://wa.me/97517817661?text=${msg}`, '_blank');
-        }
+        // Memory array to keep track of conversation
+        let chatMemory = [];
 
         async function fetchAI(userQuery, retries = 5, delay = 1000) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            // Add user query to memory
+            chatMemory.push({ role: "user", parts: [{ text: userQuery }] });
+
+            // Maintain memory size (last 10 messages)
+            if (chatMemory.length > 10) chatMemory = chatMemory.slice(-10);
+
             const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
+                contents: chatMemory,
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
@@ -191,7 +195,14 @@
 
                 if (!response.ok) throw new Error('API_FAIL');
                 const data = await response.json();
-                return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (aiText) {
+                    // Save AI response to memory
+                    chatMemory.push({ role: "model", parts: [{ text: aiText }] });
+                }
+
+                return aiText;
             } catch (error) {
                 if (retries > 0) {
                     await new Promise(r => setTimeout(r, delay));
@@ -218,25 +229,35 @@
         async function handleSendMessage() {
             const input = document.getElementById('user-input');
             const text = input.value.trim();
-            if (!text) return;
+            const btn = document.getElementById('send-btn');
+            
+            if (!text || btn.disabled) return;
 
             addMessage('user', text);
             input.value = '';
+            btn.disabled = true;
             document.getElementById('typing').classList.remove('hidden');
 
             try {
                 const reply = await fetchAI(text);
                 document.getElementById('typing').classList.add('hidden');
-                addMessage('assistant', reply || "Kuzu Zangpo! Please try again.");
+                addMessage('assistant', reply || "Kuzu Zangpo! I am having a bit of trouble. Please ask again or WhatsApp **17817661**.");
             } catch (e) {
                 document.getElementById('typing').classList.add('hidden');
-                addMessage('assistant', "Connection error. WhatsApp us at **17817661**.");
+                addMessage('assistant', "Network issue. Please contact us directly at **17817661** or try again.");
+            } finally {
+                btn.disabled = false;
             }
         }
 
         document.getElementById('user-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') handleSendMessage();
         });
+
+        function openWhatsApp() {
+            const msg = encodeURIComponent("Hello Tshong La! I want to register my business.");
+            window.open(`https://wa.me/97517817661?text=${msg}`, '_blank');
+        }
     </script>
 </body>
 </html>
